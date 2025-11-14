@@ -1,0 +1,8 @@
+.env
+*.txt
+*.json
+*.csv
+*.pdf
+*.docx
+*.xlsx
+*.pkl
