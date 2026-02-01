@@ -2,7 +2,7 @@
   <img src="cover.png" alt="Cover Image" width="100%">
 </div>
 
-# Law Comparisons
+# VectorLaw: Legal and Policy Document Comparison Architecture Using an LLM 
 
 A project for analyzing and comparing documents using LLMs, RAG (Retrieval-Augmented Generation), and data science tools. This repository provides a complete pipeline for scraping documents, processing text, creating embeddings, and performing analysis.
 
