@@ -2,6 +2,41 @@
 
 This guide explains how to populate the `data/` folder for a legal comparison project using LLMs. The workflow involves collecting legal documents, extracting text, translating when necessary, and organizing the data for analysis.
 
+## Data Sources
+
+### Climate Policy Radar
+
+One way to obtain curated datasets of legal documents is from [Climate Policy Radar](https://www.climatepolicyradar.org/). Climate Policy Radar provides structured datasets with metadata about climate-related legal documents, including document types, geographies, instruments, and content URLs.
+
+**Note**: The `sample_df.csv` file included in this folder is an example dataset from Climate Policy Radar. Following the steps below (scraping, extraction, translation) will **not** generate this type of curated metadata CSV. Instead, this file represents a pre-existing curated dataset that you might obtain from Climate Policy Radar or similar sources.
+
+If you have a curated dataset similar to `sample_df.csv`, you can use `utils/exploration.py` to analyze it:
+
+```bash
+# Explore the dataset and discover patterns
+python utils/exploration.py --input data/sample_df.csv
+
+# Save filtered outputs by geography
+python utils/exploration.py --input data/sample_df.csv --output data/filtered
+```
+
+The `exploration.py` script will automatically discover:
+- All unique geographies in your dataset
+- All document types and their distribution
+- All instruments (parsing semicolon-separated values)
+- Relationships between document types and instruments
+
+### Using Document Content URLs
+
+In the original pilot of this project, the `Document Content URL` column from Climate Policy Radar datasets was used as the starting point. These URLs often point to PDF documents that can be downloaded and processed using the workflow described below:
+
+1. Extract URLs from the `Document Content URL` column of your curated dataset
+2. Use `utils/scraping.py` to download and extract text from PDFs and HTML pages (see Step 2 below)
+3. Use `utils/extract.py` to convert text files to CSV format (optional, see Step 3 below)
+4. Use `utils/process.py` to translate/filter the text (see Step 4 below)
+
+This approach allows you to combine curated metadata (from Climate Policy Radar) with the actual document text extraction and processing workflow.
+
 ## Overview
 
 The data folder structure supports multi-jurisdictional legal document analysis. Documents are organized by jurisdiction, with each jurisdiction having its own subfolder containing PDF files. The workflow includes:
@@ -19,11 +54,11 @@ The data folder structure supports multi-jurisdictional legal document analysis.
 data/
 ├── README.md (this file)
 ├── jurisdiction1/          # e.g., "canada", "brasil", "china", "eu"
-│   ├── 1.pdf
-│   ├── 2.pdf
+│   ├── 1.txt               # Extracted text from PDFs or HTML pages
+│   ├── 2.txt
 │   └── ...
 ├── jurisdiction2/
-│   ├── 1.pdf
+│   ├── 1.txt
 │   └── ...
 └── processed/               # Optional: for processed/translated outputs
     ├── jurisdiction1_filtered.csv
@@ -43,16 +78,16 @@ urls/
 └── ...
 ```
 
-Each `.txt` file should contain one URL per line:
+Each `.txt` file should contain one URL per line (can be PDFs or HTML pages):
 ```
 https://example.com/document1.pdf
-https://example.com/document2.pdf
+https://example.com/document2.html
 https://example.com/document3.pdf
 ```
 
-### Step 2: Download PDFs
+### Step 2: Download and Extract Documents
 
-Use the provided `scraping.py` script to download PDFs from your URL files:
+Use the provided `scraping.py` script to download PDFs and HTML pages from your URL files and extract their text content:
 
 ```bash
 python utils/scraping.py --urls-file urls/jurisdiction1_urls.txt --out data/jurisdiction1
@@ -61,20 +96,23 @@ python utils/scraping.py --urls-file urls/jurisdiction2_urls.txt --out data/juri
 
 The script will:
 - Create the output directory if it doesn't exist
-- Download PDFs sequentially, naming them `1.pdf`, `2.pdf`, etc.
+- Download both PDF files and HTML web pages
+- Extract text content from both formats
+- Save extracted text as `.txt` files, naming them `1.txt`, `2.txt`, etc.
 - Skip files that already exist
-- Only download valid PDF files (checks Content-Type header)
+- Use retry logic with exponential backoff for failed requests
+- Handle SSL certificate errors and network issues gracefully
 
-**Note: if your link does not link to a valid pdf, the scraper will print failure for that document and you may need to provide an alternate link or scrape manually**
+**Note**: If a link fails to download or extract, the scraper will print an error message and continue with the next URL. You may need to provide an alternate link or handle problematic URLs manually.
 
 **Example**:
 ```bash
 python utils/scraping.py --urls-file urls/canada_urls.txt --out data/canada
 ```
 
-### Step 3: Extract Text from PDFs
+### Step 3: Extract Text from Files (Optional)
 
-Use the provided `extract.py` script to extract text from your PDFs.
+If you need to re-extract text from already-downloaded files, use the provided `extract.py` script. Note that `scraping.py` already extracts text during download, so this step is only needed if you want to re-process existing files.
 
 #### 3.1 Command Line Usage
 
@@ -83,7 +121,7 @@ python utils/extract.py --folder data/jurisdiction1 --output data/processed/juri
 ```
 
 This will:
-- Extract text from all PDF files in the specified folder
+- Extract text from all PDF and text files in the specified folder
 - Save results to a CSV file with columns: `file`, `text`
 - Show progress and summary statistics
 
@@ -94,7 +132,7 @@ You can also import and use the extraction function directly in your own scripts
 ```python
 from utils.extract import load_files
 
-# Extract text from PDFs
+# Extract text from PDFs and text files
 df = load_files('data/jurisdiction1')
 ```
 
@@ -186,7 +224,7 @@ df_processed = process_dataframe_with_checkpoints(
 
 4. **Resume Processing**: If `process.py` is interrupted, simply run it again with the same input and output files. It will automatically resume from where it left off, skipping already-processed rows.
 
-5. **File Naming**: Use consistent naming conventions (e.g., `1.pdf`, `2.pdf`) to maintain order and make tracking easier. The `scraping.py` script automatically names files this way.
+5. **File Naming**: The `scraping.py` script automatically names extracted text files as `1.txt`, `2.txt`, etc. to maintain order and make tracking easier.
 
 6. **Validation**: After processing, validate that:
    - All expected files were processed (check the summary output)
@@ -198,8 +236,8 @@ df_processed = process_dataframe_with_checkpoints(
 Key Python packages you'll need:
 
 ```bash
-# PDF processing
-pip install PyPDF2
+# Web scraping and document processing
+pip install requests beautifulsoup4 PyPDF2
 
 # Text processing
 pip install nltk langdetect
@@ -212,6 +250,8 @@ pip install pandas tqdm
 ```
 
 **Note**: 
+- `beautifulsoup4` is required for HTML extraction
+- `pdfminer.six` is recommended for PDF extraction (more robust than PyPDF2). PyPDF2 can be used as a fallback
 - `nltk` requires downloading data. Run `python -c "import nltk; nltk.download('punkt')"` after installation
 - `deep-translator` is optional but required if you want to translate non-English text. Without it, you can still detect languages and filter for English-only text
 
@@ -219,15 +259,17 @@ pip install pandas tqdm
 
 Here's a complete example for processing documents from a single jurisdiction:
 
-**Step 1: Download PDFs**
+**Step 1: Download and extract documents**
 ```bash
 python utils/scraping.py --urls-file urls/jurisdiction1_urls.txt --out data/jurisdiction1
 ```
+This downloads PDFs and HTML pages and extracts text, saving as `.txt` files.
 
-**Step 2: Extract text from PDFs**
+**Step 2: Convert to CSV (optional)**
 ```bash
 python utils/extract.py --folder data/jurisdiction1 --output data/processed/jurisdiction1_extracted.csv
 ```
+This converts the extracted text files to a CSV format for easier processing.
 
 **Step 3: Process with translation/filtering (with checkpointing)**
 ```bash
@@ -264,13 +306,15 @@ The output CSV will have:
 
 The project includes three main scripts for data processing:
 
-1. **`utils/scraping.py`**: Downloads PDF files from URLs
+1. **`utils/scraping.py`**: Downloads PDF and HTML documents from URLs and extracts text
    - Input: Text file with URLs (one per line)
-   - Output: PDF files in a folder
+   - Output: Text files (`.txt`) with extracted content in a folder
+   - Features: Handles both PDFs and HTML pages, retry logic with exponential backoff
 
-2. **`utils/extract.py`**: Extracts text from PDF files
-   - Input: Folder containing PDF files
+2. **`utils/extract.py`**: Extracts text from PDF and text files (for re-processing)
+   - Input: Folder containing PDF or text files
    - Output: CSV file with `file` and `text` columns
+   - Note: Usually not needed since `scraping.py` already extracts text during download
 
 3. **`utils/process.py`**: Processes text (language detection, translation, filtering)
    - Input: CSV file with a `text` column
@@ -281,6 +325,13 @@ The project includes three main scripts for data processing:
    - Not meant to be run directly
    - Provides functions for language detection, translation, and filtering
    - Used by `process.py` internally
+
+5. **`utils/exploration.py`**: Analyze curated datasets with metadata
+   - Input: CSV file with columns for geographies, document types, and instruments
+   - Output: Formatted analysis report showing discovered patterns
+   - Automatically discovers all geographies, document types, and instruments from your data
+   - Useful for analyzing pre-existing curated datasets (e.g., from Climate Policy Radar)
+   - Example: `python utils/exploration.py --input data/sample_df.csv`
 
 ## Notes
 

@@ -52,7 +52,7 @@ def process_dataframe_with_checkpoints(
     if checkpoint_path.exists():
         try:
             checkpoint_df = pd.read_csv(checkpoint_path, escapechar='\\')
-            print(f"📂 Loaded checkpoint from {save_path}")
+            print(f"Loaded checkpoint from {save_path}")
             
             # Merge processed results from checkpoint
             if 'processed' in checkpoint_df.columns:

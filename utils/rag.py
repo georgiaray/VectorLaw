@@ -1,26 +1,49 @@
+"""
+RAG (Retrieval-Augmented Generation) Utilities
+
+This module provides utilities for working with vector stores and performing
+semantic search on document embeddings for RAG applications.
+"""
+
 import pickle
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from openai import OpenAI
 
-VECTOR_STORE_PATH = Path("../data/vector_store/vector_store.pkl")
-# Default to large model to match what was used to create the vector store
-EMBEDDING_MODEL = "text-embedding-3-large"
 
-def load_vector_store(path: Path = VECTOR_STORE_PATH) -> Dict[str, Dict[str, Any]]:
+def load_vector_store(path: Path) -> Dict[str, Dict[str, Any]]:
+    """
+    Load a vector store from a pickle file.
+    
+    Args:
+        path: Path to the vector store pickle file
+    
+    Returns:
+        Dictionary mapping document names to their embeddings and chunks
+    """
     if not path.exists():
-        raise FileNotFoundError(f"Vector store not found at {path}. Run the embedding cell first.")
+        raise FileNotFoundError(f"Vector store not found at {path}. Create embeddings first.")
+    
     with open(path, "rb") as f:
         store = pickle.load(f)
+    
     # Ensure embeddings are numpy arrays after unpickling
     for entry in store.values():
         entry["embeddings"] = np.array(entry["embeddings"], dtype=np.float32)
+    
     return store
 
 
-def query_document(store: Dict[str, Dict[str, Any]], client: OpenAI, doc_name: str, query: str, top_k: int = 3, embedding_model: str = None) -> List[Dict[str, Any]]:
+def query_document(
+    store: Dict[str, Dict[str, Any]], 
+    client: OpenAI, 
+    doc_name: str, 
+    query: str, 
+    top_k: int = 3, 
+    embedding_model: str = "text-embedding-3-large"
+) -> List[Dict[str, Any]]:
     """
     Query a document in the vector store and return top_k most similar chunks.
     
@@ -30,12 +53,12 @@ def query_document(store: Dict[str, Dict[str, Any]], client: OpenAI, doc_name: s
         doc_name: Name of the document to query
         query: Query string
         top_k: Number of top results to return
-        embedding_model: Model to use for embedding the query. If None, uses EMBEDDING_MODEL constant.
+        embedding_model: Model to use for embedding the query.
                         Must match the model used to create the stored embeddings.
-    """
-    if embedding_model is None:
-        embedding_model = EMBEDDING_MODEL
     
+    Returns:
+        List of dictionaries with 'chunk_index', 'similarity', and 'text' keys
+    """
     doc_entry = store.get(doc_name)
     if doc_entry is None:
         available = ", ".join(sorted(store.keys()))
@@ -71,11 +94,8 @@ def query_document(store: Dict[str, Dict[str, Any]], client: OpenAI, doc_name: s
                 continue
         elif isinstance(chunks, dict):
             # If chunks is a dict, we need to find the chunk with matching index
-            # The dict might be keyed by chunk_index (int or str) or by position
-            # Try to find by chunk_index first (as int)
             if idx_int in chunks:
                 chunk_meta = chunks[idx_int]
-            # Try as string key
             elif str(idx_int) in chunks:
                 chunk_meta = chunks[str(idx_int)]
             else:
