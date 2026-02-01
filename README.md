@@ -204,6 +204,16 @@ This is a general-purpose framework. To adapt it for your use case:
 2. Modify the workflow scripts as needed
 3. Add your own analysis notebooks or scripts
 
+## Acknowledgements
+
+This project was developed with assistance from an LLM code assistant. The assistant primarily helped with:
+- Reorganizing project structure and file organization
+- Writing and improving documentation and explanations
+- Refactoring code for better modularity
+- General code organization and cleanup
+
+The core code logic, algorithms, and business logic were developed by the project maintainer.
+
 ## License
 
 See LICENSE file for details.
