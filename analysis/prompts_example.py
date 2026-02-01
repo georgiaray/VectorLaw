@@ -772,3 +772,23 @@ def summarizing_prompt(document_text, focus_area, json_schema, note = None):
 
     Remember, even though categorizations have been provided, you are not doing any categorization. You are just summarizing the document with a focus on its {focus_area}."""
     return prompt
+
+
+def get_all_prompts(doc_text):
+    """
+    Returns a list of prompts for summarization.
+    This function is required by summarize.py to generate question-focused summaries.
+    
+    Args:
+        doc_text: The document text to summarize
+    
+    Returns:
+        List of prompt strings, one for each question/aspect to summarize
+    """
+    question_2_prompt = summarizing_prompt(doc_text, "sectoral focus", question_2_json_schema)
+    question_3_prompt = summarizing_prompt(doc_text, "subject of intervention", question_3_json_schema, question_3_note)
+    question_4_prompt = summarizing_prompt(doc_text, "market failure", question_4_json_schema)
+    question_5_prompt = summarizing_prompt(doc_text, "type of instrument", question_5_json_schema)
+    question_6_prompt = summarizing_prompt(doc_text, "metadata and logistical details", question_6_json_schema, question_6_note)
+    all_prompts = [question_2_prompt, question_3_prompt, question_4_prompt, question_5_prompt, question_6_prompt]
+    return all_prompts
